@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>成长报告 - {{ stu['name'] }}</title>
+<style>
+@page { size: A4; margin: 1.6cm; }
+* { box-sizing: border-box; }
+body { font-family: 'Microsoft YaHei', 'SimSun', sans-serif; color: #24303c; font-size: 13px; line-height: 1.75; }
+.header { text-align: center; border-bottom: 3px solid #0e7490; padding-bottom: 10px; margin-bottom: 16px; }
+.header h1 { margin: 0 0 2px; font-size: 22px; color: #0e7490; letter-spacing: 2px; }
+.header .sub { color: #64748b; font-size: 12px; }
+.info { display: flex; flex-wrap: wrap; gap: 8px 30px; background: #f1f7fa; border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; }
+.info span { font-size: 13px; }
+h3 { color: #0e7490; font-size: 15px; border-left: 4px solid #0e7490; padding-left: 8px; margin: 18px 0 8px; }
+table { width: 100%; border-collapse: collapse; margin: 6px 0 4px; }
+th, td { border: 1px solid #cbd5e1; padding: 5px 8px; text-align: center; font-size: 12.5px; }
+th { background: #e8f3f7; color: #134e5f; }
+td.dim { text-align: left; font-weight: 600; }
+.total-row td { background: #f8fbfc; font-weight: 700; }
+.comment { background: #f8fbfc; border-left: 3px solid #10b981; padding: 6px 10px; margin: 6px 0; font-size: 12.5px; }
+.works td { text-align: left; }
+.sign { display: flex; justify-content: space-between; margin-top: 30px; font-size: 12.5px; }
+.footer { margin-top: 22px; text-align: center; color: #94a3b8; font-size: 11px; border-top: 1px dashed #cbd5e1; padding-top: 8px; }
+@media print { .no-print { display: none; } }
+.btn { background: #0e7490; color: #fff; border: none; padding: 8px 18px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+</style>
+</head>
+<body>
+<button class="btn no-print" onclick="window.print()" style="margin-bottom:10px">打印 / 另存为 PDF</button>
+<div class="header">
+  <h1>碱蓬火智能美育综合分析平台 · 学生成长档案</h1>
+  <div class="sub">五育并举（德智体美劳）综合评价报告 · {{ stu['school'] }}</div>
+</div>
+<div class="info">
+  <span><b>姓名：</b>{{ stu['name'] }}</span>
+  <span><b>性别：</b>{{ stu['gender'] }}</span>
+  <span><b>班级：</b>{{ stu['grade_class'] }}</span>
+  <span><b>综合评定：</b>{{ latest }} 分（{{ level }}）</span>
+  <span><b>报告日期：</b>{{ __DATETIME_NOW__ }}</span>
+</div>
+
+<h3>一、五育 × 三阶段成绩矩阵</h3>
+<table>
+  <thead><tr><th>维度</th>{% for st in stages %}<th>{{ st }}</th>{% endfor %}<th>阶段均分</th></tr></thead>
+  <tbody>
+  {% for i in range(5) %}
+    <tr>
+      <td class="dim">{{ letters[i] }}·{{ dims[i] }}</td>
+      {% for j in range(3) %}<td>{{ matrix[j][i] if matrix[j][i] is not none else '—' }}</td>{% endfor %}
+      <td>{{ dim_avg[i] if dim_avg[i] is not none else '—' }}</td>
+    </tr>
+  {% endfor %}
+  <tr class="total-row"><td>阶段均分</td>{% for v in stage_avg %}<td>{{ v if v is not none else '—' }}</td>{% endfor %}<td>{{ latest if latest is not none else '—' }}</td></tr>
+  </tbody>
+</table>
+
+<h3>二、阶段评语</h3>
+{% for st in range(3) %}
+  {% if comments.get(st + 1) %}
+  <div class="comment"><b>{{ stages[st] }}：</b>{{ comments[st + 1] }}</div>
+  {% endif %}
+{% endfor %}
+
+<h3>三、作品评价记录</h3>
+{% if works %}
+<table class="works">
+  <thead><tr><th>作品</th><th>类别</th><th>完成度</th><th>创意性</th><th>技法</th><th>AI分</th><th>教师分</th><th>综合分</th></tr></thead>
+  <tbody>
+  {% for w in works %}
+    <tr><td>{{ w['title'] }}</td><td>{{ w['category'] }}</td><td>{{ w['completeness'] }}</td><td>{{ w['creativity'] }}</td><td>{{ w['technique'] }}</td><td>{{ w['ai_score'] }}</td><td>{{ w['teacher_score'] }}</td><td><b>{{ w['final_score'] }}</b></td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="comment">暂无作品评价记录。</p>
+{% endif %}
+
+<div class="sign">
+  <span>班主任（签字）：__________________</span>
+  <span>家长（签字）：____________________</span>
+</div>
+<div class="footer">本报告由「碱蓬火智能美育综合分析平台 V2.0」自动生成 · 数据来源为学生综合评价系统</div>
+<script>document.querySelector('.info').innerHTML += '';</script>
+</body>
+</html>

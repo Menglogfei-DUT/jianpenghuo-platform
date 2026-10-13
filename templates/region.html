@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+{% block page_title %}区域分析{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h2>区域教育发展分析</h2>
+  <p>输入地区名称，自动检索官方公开统计数据并生成指数评级、短板诊断与对策建议，辅助支教地区教育振兴决策</p>
+</div>
+<div class="card region-search">
+  <div class="search-row">
+    <input type="text" id="q" placeholder="输入地区名称，如：南乐县、凉山州" onkeydown="if(event.key==='Enter')doSearch()">
+    <button class="btn primary" onclick="doSearch()">检索分析</button>
+  </div>
+  <div class="chips" id="chips"></div>
+</div>
+<div id="regionResult"></div>
+{% endblock %}
+{% block scripts %}
+<script>
+loadChips();
+async function loadChips() {
+  var r = await api('/api/region/list');
+  var box = document.getElementById('chips');
+  box.innerHTML = '可分析地区：';
+  r.data.forEach(function (x) {
+    var s = document.createElement('span');
+    s.className = 'chip';
+    s.textContent = x.name;
+    s.title = x.full;
+    s.onclick = function () { document.getElementById('q').value = x.name; doSearch(); };
+    box.appendChild(s);
+  });
+}
+async function doSearch() {
+  var q = document.getElementById('q').value.trim();
+  if (!q) { toast('请输入地区名称', 'error'); return; }
+  var box = document.getElementById('regionResult');
+  box.innerHTML = '<div class="card"><div class="muted">正在检索该地区官方统计数据…</div></div>';
+  var r = await api('/api/region/search?q=' + encodeURIComponent(q));
+  if (!r.ok) { box.innerHTML = '<div class="card warn-card"><b>未检索到结果</b><p class="muted">' + r.msg + '</p></div>'; return; }
+  var d = r.data;
+  var lvTag = { 't1': 'lv-ok', 't2': 'lv-good', 't3': 'lv-mid', 't4': 'lv-warn' }[d.tag] || 'lv-mid';
+  var html = '';
+  html += '<div class="card region-head">';
+  html += '<div><h3>' + d.full_name + '</h3><div class="muted">' + d.level + '｜数据年份 ' + d.year_range + '</div><p class="r-summary">' + d.summary + '</p></div>';
+  html += '<div class="r-index ' + lvTag + '"><div class="big">' + d.index + '</div><div>' + d.level + '</div><div class="muted">综合指数</div></div>';
+  html += '</div>';
+  html += '<div class="card"><h3>官方统计指标</h3><div class="tbl-wrap"><table class="tbl"><thead><tr><th>指标</th><th>数值</th><th>参考目标</th><th>达成度</th><th>状态</th><th>数据年份与来源</th></tr></thead><tbody>';
+  d.items.forEach(function (it) {
+    var stCls = it.status === '达标' ? 't1' : (it.status === '接近' ? 't3' : (it.status === '未达标' ? 't4' : 't2'));
+    html += '<tr><td>' + it.name + '</td><td>' + (it.value >= 10000 ? (Math.round(it.value / 10000 * 10) / 10) + ' 万' : it.value) + ' ' + (it.unit || '') + '</td>' +
+      '<td>' + (it.target === null ? '—' : it.target + (it.unit === '%' ? '%' : '')) + '</td>' +
+      '<td>' + (it.score === null ? '—' : it.score + '%') + '</td>' +
+      '<td><span class="tag ' + stCls + '">' + it.status + '</span></td>' +
+      '<td><small>' + it.year + ' · ' + it.source + '</small><br><small class="muted">' + (it.note || '') + '</small></td></tr>';
+  });
+  html += '</tbody></table></div></div>';
+  html += '<div class="card"><h3>诊断分析</h3><p class="advice">' + d.diag + '</p></div>';
+  html += '<div class="card"><h3>对策建议（辅助决策）</h3><ul class="act-list">' + d.suggestions.map(function (s) { return '<li>' + s + '</li>'; }).join('') + '</ul></div>';
+  html += '<div class="card"><p class="muted r-note">' + d.data_note + '</p></div>';
+  box.innerHTML = html;
+}
+</script>
+{% endblock %}

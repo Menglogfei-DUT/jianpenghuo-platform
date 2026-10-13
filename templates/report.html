@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block page_title %}报告导出{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h2>成长报告导出</h2>
+  <p>选择学生后生成 A4 打印版数字成长档案，可直接打印或保存为 PDF</p>
+</div>
+<div class="card" style="max-width:420px">
+  <div class="form-col">
+    <div class="f"><label>选择学生</label><select id="rep_stu"></select></div>
+    <button class="btn primary" onclick="openReport()">生成并打印报告</button>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+loadStu();
+async function loadStu() {
+  var r = await api('/api/students');
+  var sel = document.getElementById('rep_stu');
+  sel.innerHTML = '';
+  r.data.forEach(function (s) { sel.innerHTML += '<option value="' + s.id + '">' + s.name + '｜' + s.grade_class + '</option>'; });
+}
+function openReport() {
+  var id = document.getElementById('rep_stu').value;
+  if (!id) { toast('请先选择学生', 'error'); return; }
+  window.open('/report/print/' + id, '_blank');
+}
+</script>
+{% endblock %}

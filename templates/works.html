@@ -1,0 +1,100 @@
+{% extends 'base.html' %}
+{% block page_title %}作品评价{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h2>作品评价</h2>
+  <p>AI 智能评分（完成度40% + 创意性35% + 技法25%）与教师评价融合，形成人机协同双重评估</p>
+</div>
+<div class="grid c2">
+  <div class="card">
+    <h3>录入作品</h3>
+    <div class="form-col">
+      <div class="f"><select id="w_stu" onchange="loadAiPreview()"></select></div>
+      <div class="f"><input type="text" id="w_title" placeholder="作品标题，如：我的家乡"></div>
+      <div class="f"><select id="w_cat">
+        {% for c in categories %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+      </select></div>
+      <div class="f"><label>完成度</label><input type="range" id="w_comp" min="0" max="10" step="0.5" value="7" oninput="loadAiPreview()"><span id="v_comp">7.0</span></div>
+      <div class="f"><label>创意性</label><input type="range" id="w_crea" min="0" max="10" step="0.5" value="7" oninput="loadAiPreview()"><span id="v_crea">7.0</span></div>
+      <div class="f"><label>技法</label><input type="range" id="w_tech" min="0" max="10" step="0.5" value="7" oninput="loadAiPreview()"><span id="v_tech">7.0</span></div>
+      <div class="f"><label>教师评分（0-100）</label><input type="number" id="w_teacher" min="0" max="100" step="0.5" value="" placeholder="留空默认等于AI分"></div>
+      <button class="btn primary" onclick="saveWork()">保存评价</button>
+    </div>
+    <div class="ai-preview" id="aiPreview">AI 评分：—</div>
+    <div class="comment-box" id="workComment">录入后自动生成作品评语</div>
+  </div>
+  <div class="card">
+    <h3>作品记录</h3>
+    <div class="tbl-wrap" style="max-height:480px;overflow:auto">
+      <table class="tbl">
+        <thead><tr><th>学生</th><th>作品</th><th>类别</th><th>AI分</th><th>教师分</th><th>综合分</th><th>操作</th></tr></thead>
+        <tbody id="workTb"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+var CATS = {{ categories|tojson }};
+var curAi = 70;
+loadStu();
+loadWorks();
+async function loadStu() {
+  var r = await api('/api/students');
+  var sel = document.getElementById('w_stu');
+  sel.innerHTML = '';
+  r.data.forEach(function (s) { sel.innerHTML += '<option value="' + s.id + '">' + s.name + '｜' + s.grade_class + '</option>'; });
+  loadAiPreview();
+}
+function loadAiPreview() {
+  var comp = parseFloat(document.getElementById('w_comp').value);
+  var crea = parseFloat(document.getElementById('w_crea').value);
+  var tech = parseFloat(document.getElementById('w_tech').value);
+  document.getElementById('v_comp').textContent = comp.toFixed(1);
+  document.getElementById('v_crea').textContent = crea.toFixed(1);
+  document.getElementById('v_tech').textContent = tech.toFixed(1);
+  curAi = Math.round((40 * comp / 10 + 35 * crea / 10 + 25 * tech / 10) * 10) / 10;
+  document.getElementById('aiPreview').textContent = 'AI 评分：' + curAi + ' 分';
+  var t = document.getElementById('w_teacher');
+  if (t.value === '') { document.getElementById('workComment').textContent = '教师分留空时综合分 = AI分'; return; }
+  var fin = Math.round((0.5 * curAi + 0.5 * parseFloat(t.value)) * 10) / 10;
+  document.getElementById('workComment').textContent = '综合分：' + fin;
+}
+document.getElementById('w_teacher').addEventListener('input', loadAiPreview);
+async function saveWork() {
+  var sid = document.getElementById('w_stu').value;
+  var title = document.getElementById('w_title').value.trim();
+  if (!sid || !title) { toast('请选择学生并填写作品标题', 'error'); return; }
+  var body = { student_id: parseInt(sid), title: title, category: document.getElementById('w_cat').value,
+    completeness: parseFloat(document.getElementById('w_comp').value),
+    creativity: parseFloat(document.getElementById('w_crea').value),
+    technique: parseFloat(document.getElementById('w_tech').value),
+    teacher_score: document.getElementById('w_teacher').value === '' ? null : parseFloat(document.getElementById('w_teacher').value) };
+  var r = await api('/api/works', 'POST', body);
+  toast(r.msg, r.ok ? 'success' : 'error');
+  if (r.ok) {
+    document.getElementById('w_title').value = '';
+    document.getElementById('workComment').textContent = r.comment;
+    loadWorks();
+  }
+}
+async function loadWorks() {
+  var r = await api('/api/works');
+  var tb = document.getElementById('workTb');
+  tb.innerHTML = '';
+  r.data.forEach(function (w) {
+    var tr = document.createElement('tr');
+    tr.innerHTML = '<td>' + w.name + '</td><td>' + w.title + '</td><td>' + w.category + '</td><td>' + w.ai_score + '</td><td>' + w.teacher_score + '</td><td><b>' + w.final_score + '</b></td>' +
+      '<td><button class="btn gray sm" onclick="delWork(' + w.id + ')">删除</button></td>';
+    tb.appendChild(tr);
+  });
+}
+async function delWork(id) {
+  if (!confirm('确认删除该作品评价？')) return;
+  var r = await api('/api/works/' + id, 'DELETE');
+  toast(r.msg, 'success');
+  loadWorks();
+}
+</script>
+{% endblock %}

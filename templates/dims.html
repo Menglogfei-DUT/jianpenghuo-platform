@@ -1,0 +1,125 @@
+{% extends 'base.html' %}
+{% block page_title %}综合评价（德智体美劳）{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h2>综合评价</h2>
+  <p>五育 × 三阶段评价矩阵 · 自动计算均分与等级 · 实时生成个性化评语</p>
+</div>
+<div class="grid c3" style="grid-template-columns: 260px 1fr">
+  <div class="card">
+    <h3>选择学生</h3>
+    <div class="stu-list" id="stuList"></div>
+  </div>
+  <div class="card">
+    <div class="dims-toolbar">
+      <div><b id="selName">请先在左侧选择学生</b><span id="selMeta" class="muted"></span></div>
+      <button class="btn primary" onclick="saveScores()">保存评价</button>
+    </div>
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <thead><tr><th>维度</th>
+        {% for st in stages %}<th>{{ st }}</th>{% endfor %}
+        <th>阶段均分</th><th>评级</th></tr></thead>
+        <tbody id="dimTb"></tbody>
+      </table>
+    </div>
+    <div class="comment-box" id="commentBox">
+      <h4>自动评语预览</h4>
+      <div id="commentText" class="muted">选择学生并录入成绩后自动生成</div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+var DIMS = {{ dims|tojson }};
+var LETTERS = {{ letters|tojson }};
+var STAGES = {{ stages|tojson }};
+var curId = null;
+var LEVELS_LV = [85, 70, 60];
+loadStudents();
+async function loadStudents() {
+  var r = await api('/api/students');
+  var box = document.getElementById('stuList');
+  box.innerHTML = '';
+  if (!r.data.length) { box.innerHTML = '<div class="muted">暂无学生，请先到「学生档案」添加</div>'; return; }
+  r.data.forEach(function (s) {
+    var d = document.createElement('div');
+    d.className = 'stu-item';
+    d.innerHTML = '<span><b>' + s.name + '</b><br><small>' + s.grade_class + '</small></span><span class="tag ' + (s.level === '未评价' ? 't4' : (s.avg_score >= 85 ? 't1' : (s.avg_score >= 70 ? 't2' : (s.avg_score >= 60 ? 't3' : 't4')))) + '">' + fmtNum(s.avg_score) + '</span>';
+    d.onclick = function () { selectStu(s.id, s.name, s.grade_class); };
+    box.appendChild(d);
+  });
+}
+function selectStu(id, name, cls) {
+  curId = id;
+  document.getElementById('selName').textContent = name;
+  document.getElementById('selMeta').textContent = '｜' + cls;
+  document.querySelectorAll('.stu-item').forEach(function (el) { el.classList.remove('active'); });
+  event.currentTarget.classList.add('active');
+  loadScores();
+}
+async function loadScores() {
+  var r = await api('/api/dim_scores?student_id=' + curId);
+  var tb = document.getElementById('dimTb');
+  tb.innerHTML = '';
+  var vals = {}, stageSum = [0, 0, 0], stageN = [0, 0, 0];
+  for (var i = 0; i < 5; i++) {
+    var tr = document.createElement('tr');
+    tr.innerHTML = '<td><b>' + LETTERS[i] + '·' + DIMS[i] + '</b></td>';
+    for (var j = 0; j < 3; j++) {
+      var key = (i + 1) + '_' + (j + 1);
+      var v = r.data[key];
+      if (v !== undefined) { vals[key] = v; stageSum[j] += v; stageN[j]++; }
+      var td = document.createElement('td');
+      td.innerHTML = '<input type="number" class="score-in" min="0" max="100" step="0.5" data-key="' + key + '" value="' + (v === undefined ? '' : v) + '" oninput="calcDims()">';
+      tr.appendChild(td);
+    }
+    tr.appendChild(document.createElement('td')).innerHTML = '<span class="dim-avg" id="da_' + i + '">—</span>';
+    tr.appendChild(document.createElement('td')).innerHTML = '<span class="dim-lv" id="dl_' + i + '"></span>';
+    tb.appendChild(tr);
+  }
+  calcDims();
+}
+function calcDims() {
+  var tb = document.getElementById('dimTb');
+  var rows = tb.querySelectorAll('tr');
+  var dims = [];
+  for (var i = 0; i < 5; i++) {
+    var sum = 0, n = 0;
+    rows[i].querySelectorAll('input').forEach(function (inp) {
+      if (inp.value !== '') { sum += parseFloat(inp.value); n++; }
+    });
+    var avg = n ? Math.round(sum / n * 10) / 10 : null;
+    dims.push(avg);
+    document.getElementById('da_' + i).textContent = avg === null ? '—' : avg;
+    var lvEl = document.getElementById('dl_' + i);
+    if (avg === null) lvEl.textContent = '';
+    else {
+      var lv = avg >= 85 ? '优秀' : (avg >= 70 ? '良好' : (avg >= 60 ? '需提升' : '需关注'));
+      lvEl.textContent = lv;
+      lvEl.className = 'tag ' + (avg >= 85 ? 't1' : (avg >= 70 ? 't2' : (avg >= 60 ? 't3' : 't4')));
+    }
+  }
+  if (dims.every(function (x) { return x !== null; })) {
+    var total = Math.round(dims.reduce(function (a, b) { return a + b; }, 0) / 5 * 10) / 10;
+    var lv = total >= 85 ? '优秀' : (total >= 70 ? '良好' : (total >= 60 ? '需提升' : '需关注'));
+    var txt = '综合评定：' + lv + '（' + total + ' 分）。';
+    txt += dims.map(function (v, i) { return '【' + LETTERS[i] + '·' + DIMS[i] + '】' + v + ' 分' + (v >= 85 ? '，表现突出' : (v >= 70 ? '，发展良好' : (v >= 60 ? '，尚有潜力' : '，需要关注'))); }).join('；');
+    document.getElementById('commentText').textContent = txt;
+  } else {
+    document.getElementById('commentText').textContent = '请完整录入五个维度的成绩后自动生成评语';
+  }
+}
+async function saveScores() {
+  if (!curId) { toast('请先选择学生', 'error'); return; }
+  var scores = {};
+  document.querySelectorAll('#dimTb input').forEach(function (inp) {
+    if (inp.value !== '') scores[inp.dataset.key] = parseFloat(inp.value);
+  });
+  var r = await api('/api/dim_scores', 'POST', { student_id: curId, scores: scores });
+  toast(r.msg, r.ok ? 'success' : 'error');
+  if (r.ok) loadStudents();
+}
+</script>
+{% endblock %}

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block page_title %}碱蓬火智能美育综合分析平台 V2.0{% endblock %}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+<link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
+<script src="{{ url_for('static', filename='js/echarts.min.js') }}"></script>
+</head>
+<body class="app-body">
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="brand">
+      <img src="{{ url_for('static', filename='logo.jpg') }}" alt="碱蓬火" class="brand-logo">
+      <div class="brand-txt">
+        <div class="brand-name">碱蓬火智能美育</div>
+        <div class="brand-sub">综合分析平台 V2.0</div>
+      </div>
+    </div>
+    <nav class="nav">
+      <a href="/" class="nav-item {{ 'active' if active=='index' }}"><span class="dot c1"></span>总览看板</a>
+      <a href="/students" class="nav-item {{ 'active' if active=='students' }}"><span class="dot c2"></span>学生档案</a>
+      <a href="/dims" class="nav-item {{ 'active' if active=='dims' }}"><span class="dot c3"></span>综合评价</a>
+      <a href="/works" class="nav-item {{ 'active' if active=='works' }}"><span class="dot c4"></span>作品评价</a>
+      <a href="/guide" class="nav-item {{ 'active' if active=='guide' }}"><span class="dot c5"></span>成长指南</a>
+      <a href="/region" class="nav-item {{ 'active' if active=='region' }}"><span class="dot c6"></span>区域分析</a>
+      <a href="/report" class="nav-item {{ 'active' if active=='report' }}"><span class="dot c7"></span>报告导出</a>
+    </nav>
+    <div class="side-foot">
+      <div class="user-chip"><span class="dot c8"></span><span id="user-phone">{{ session.get('user','') }}</span></div>
+      <button class="btn-logout" onclick="logout()">退出登录</button>
+    </div>
+  </aside>
+  <main class="main">
+    <header class="topbar">
+      <div class="page-title">{{ self.page_title() }}</div>
+      <div class="top-right"><span class="ver-tag">五育并举 · 德智体美劳</span></div>
+    </header>
+    <div class="content">
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+</div>
+<div id="toast" class="toast"></div>
+<script>
+function toast(msg, type) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + (type || '');
+  setTimeout(function () { t.className = 'toast'; }, 2600);
+}
+async function api(url, method, body) {
+  var opt = { method: method || 'GET', headers: { 'Content-Type': 'application/json' } };
+  if (body !== undefined) opt.body = JSON.stringify(body);
+  var res = await fetch(url, opt);
+  if (res.status === 401) { location.href = '/login'; throw new Error('未登录'); }
+  return res.json();
+}
+function logout() {
+  fetch('/api/logout', { method: 'POST' }).then(function (r) { return r.json(); }).then(function () { location.href = '/login'; });
+}
+function fmtNum(n) { if (n === null || n === undefined) return '-'; return Math.round(n * 10) / 10; }
+function initC(id) { return echarts.init(document.getElementById(id)); }
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

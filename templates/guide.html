@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+{% block page_title %}成长指南{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h2>个性化成长指南</h2>
+  <p>基于最新阶段五育数据自动生成：短板诊断、提升目标、行动清单与家校协作建议</p>
+</div>
+<div class="card" style="max-width:360px">
+  <h3>选择学生</h3>
+  <div class="stu-list" id="stuList"></div>
+</div>
+<div id="guideBody"></div>
+{% endblock %}
+{% block scripts %}
+<script>
+var DIMS = {{ dims|tojson }};
+var LETTERS = {{ letters|tojson }};
+loadStudents();
+async function loadStudents() {
+  var r = await api('/api/students');
+  var box = document.getElementById('stuList');
+  box.innerHTML = '';
+  r.data.forEach(function (s) {
+    var d = document.createElement('div');
+    d.className = 'stu-item';
+    d.innerHTML = '<span><b>' + s.name + '</b><br><small>' + s.grade_class + '</small></span><span>' + fmtNum(s.avg_score) + '</span>';
+    d.onclick = function (ev) {
+      document.querySelectorAll('.stu-item').forEach(function (el) { el.classList.remove('active'); });
+      ev.currentTarget.classList.add('active');
+      loadGuide(s.id);
+    };
+    box.appendChild(d);
+  });
+}
+async function loadGuide(id) {
+  var r = await api('/api/guide/' + id);
+  if (!r.ok) { document.getElementById('guideBody').innerHTML = '<div class="card"><div class="muted">' + r.msg + '</div></div>'; return; }
+  var g = r.data, s = g.student;
+  var html = '';
+  html += '<div class="card"><h3>' + s.name + ' · 成长指南（基于' + g.stage + '数据）</h3>';
+  html += '<div class="guide-total"><div><div class="big">' + g.total + '</div><div class="muted">综合分 · ' + g.level + '</div></div>' +
+    '<div class="g-target"><b>下阶段目标</b><div>短板维度 ' + g.low_dim.name + '：' + g.low_dim.score + ' → ' + g.low_dim.target + '</div><div>综合分：' + g.total + ' → ' + g.total_target + '</div></div></div>';
+  html += '</div>';
+  html += '<div class="grid c2">';
+  g.dims.forEach(function (d) {
+    var lvCls = d.level === 'high' ? 'lv-ok' : (d.level === 'mid' ? 'lv-good' : 'lv-mid');
+    html += '<div class="card"><div class="dim-head"><span class="dim-letter">' + d.letter + '</span><div><b>' + d.dim + '</b><div class="muted">' + d.score + ' 分 · ' + d.level_name + '</div></div></div>' +
+      '<div class="bar"><div class="bar-in ' + lvCls + '" style="width:' + Math.min(100, d.score) + '%"></div></div>' +
+      '<p class="advice">' + d.advice + '</p><ul class="act-list">' + d.acts.map(function (a) { return '<li>' + a + '</li>'; }).join('') + '</ul></div>';
+  });
+  html += '</div>';
+  html += '<div class="card"><h3>家校协作建议</h3><ul class="act-list">' + g.family.map(function (f) { return '<li>' + f + '</li>'; }).join('') + '</ul></div>';
+  document.getElementById('guideBody').innerHTML = html;
+}
+</script>
+{% endblock %}

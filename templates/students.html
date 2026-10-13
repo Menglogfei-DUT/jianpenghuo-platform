@@ -1,0 +1,105 @@
+{% extends 'base.html' %}
+{% block page_title %}学生档案{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h2>学生档案</h2>
+  <p>学生信息管理与数字成长档案，点击「查看档案」查看五育×三阶段完整档案、自动评语与作品记录</p>
+</div>
+<div class="card">
+  <div class="form-row" style="margin-bottom:12px">
+    <div class="f"><input type="text" id="f_name" placeholder="学生姓名"></div>
+    <div class="f small"><select id="f_gender"><option value="男">男</option><option value="女">女</option></select></div>
+    <div class="f"><input type="text" id="f_class" placeholder="年级班级，如：六年级一班"></div>
+    <div class="f"><input type="text" id="f_school" placeholder="学校（可留空）"></div>
+    <button class="btn primary" onclick="addStudent()">新增学生</button>
+  </div>
+  <div class="tbl-wrap">
+    <table class="tbl">
+      <thead><tr><th>姓名</th><th>性别</th><th>年级班级</th><th>最新综合分</th><th>评价等级</th><th>作品数</th><th>操作</th></tr></thead>
+      <tbody id="tb"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- 成长档案弹窗 -->
+<div class="modal-mask" id="profileMask" style="display:none" onclick="if(event.target===this)closeProfile()">
+  <div class="modal">
+    <div class="modal-head"><h3 id="pf_title">成长档案</h3><button class="btn gray sm" onclick="closeProfile()">关闭</button></div>
+    <div class="modal-body" id="pf_body"></div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+var DIMS = {{ dims|tojson }};
+var LETTERS = {{ letters|tojson }};
+var STAGES = {{ stages|tojson }};
+var LEVEL_COLOR = { '优秀': 't1', '良好': 't2', '需提升': 't3', '需关注': 't4', '未评价': 't4' };
+loadList();
+async function loadList() {
+  var r = await api('/api/students');
+  var tb = document.getElementById('tb');
+  tb.innerHTML = '';
+  r.data.forEach(function (s) {
+    var tr = document.createElement('tr');
+    tr.innerHTML = '<td><b>' + s.name + '</b></td><td>' + s.gender + '</td><td>' + s.grade_class + '</td>' +
+      '<td>' + (s.avg_score === null ? '—' : s.avg_score + ' 分') + '</td>' +
+      '<td><span class="tag ' + (LEVEL_COLOR[s.level] || 't4') + '">' + s.level + '</span></td>' +
+      '<td>' + s.work_count + '</td>' +
+      '<td><button class="btn blue sm" onclick="showProfile(' + s.id + ')">查看档案</button> ' +
+      '<button class="btn gray sm" onclick="delStudent(' + s.id + ',\'' + s.name + '\')">删除</button></td>';
+    tb.appendChild(tr);
+  });
+}
+async function addStudent() {
+  var body = { name: document.getElementById('f_name').value, gender: document.getElementById('f_gender').value,
+    grade_class: document.getElementById('f_class').value, school: document.getElementById('f_school').value };
+  if (!body.name.trim()) { toast('请填写学生姓名', 'error'); return; }
+  var r = await api('/api/students', 'POST', body);
+  toast(r.msg, r.ok ? 'success' : 'error');
+  if (r.ok) { ['f_name', 'f_class', 'f_school'].forEach(function (id) { document.getElementById(id).value = ''; }); loadList(); }
+}
+async function delStudent(id, name) {
+  if (!confirm('确认删除学生「' + name + '」及其全部评价数据？')) return;
+  var r = await api('/api/students/' + id, 'DELETE');
+  toast(r.msg, 'success');
+  loadList();
+}
+async function showProfile(id) {
+  var r = await api('/api/profile/' + id);
+  if (!r.ok) { toast(r.msg, 'error'); return; }
+  var d = r.data, s = d.student;
+  document.getElementById('pf_title').textContent = s.name + ' · 数字成长档案';
+  var html = '';
+  html += '<div class="pf-info">' + s.name + '｜' + s.gender + '｜' + s.grade_class + '｜' + s.school + '｜综合' + fmtNum(d.latest_avg) + '分（' + d.level + '）</div>';
+  html += '<h4>五育 × 三阶段成绩矩阵</h4><table class="tbl"><thead><tr><th>维度</th>';
+  STAGES.forEach(function (st) { html += '<th>' + st + '</th>'; });
+  html += '</tr></thead><tbody>';
+  for (var i = 0; i < 5; i++) {
+    html += '<tr><td>' + LETTERS[i] + '·' + DIMS[i] + '</td>';
+    for (var j = 0; j < 3; j++) {
+      var v = d.matrix[j][i];
+      html += '<td>' + (v === null ? '—' : v) + '</td>';
+    }
+    html += '</tr>';
+  }
+  html += '<tr><td><b>阶段均分</b></td>';
+  d.stage_avg.forEach(function (v) { html += '<td><b>' + (v === null ? '—' : v) + '</b></td>'; });
+  html += '</tr></tbody></table>';
+  html += '<h4>阶段评语</h4>';
+  [1, 2, 3].forEach(function (st) {
+    if (d.comments[st]) html += '<div class="pf-comment"><b>' + STAGES[st - 1] + '：</b>' + d.comments[st] + '</div>';
+  });
+  if (d.works && d.works.length) {
+    html += '<h4>作品记录</h4><table class="tbl"><thead><tr><th>作品</th><th>类别</th><th>AI分</th><th>教师分</th><th>综合分</th></tr></thead><tbody>';
+    d.works.forEach(function (w) {
+      html += '<tr><td>' + w.title + '</td><td>' + w.category + '</td><td>' + w.ai_score + '</td><td>' + w.teacher_score + '</td><td><b>' + w.final_score + '</b></td></tr>';
+    });
+    html += '</tbody></table>';
+  } else html += '<div class="pf-comment">暂无作品评价记录。</div>';
+  document.getElementById('pf_body').innerHTML = html;
+  document.getElementById('profileMask').style.display = 'flex';
+}
+function closeProfile() { document.getElementById('profileMask').style.display = 'none'; }
+</script>
+{% endblock %}

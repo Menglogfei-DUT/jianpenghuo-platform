@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+{% block page_title %}总览看板{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h2>总览看板</h2>
+  <p>五育并举（德智体美劳）· 三阶段动态追踪 · AI+教师人机协同评估 · 区域教育发展研判</p>
+</div>
+<div class="grid c4">
+  <div class="card kpi"><div class="num" id="k_stu">-</div><div class="lbl">在册学生</div></div>
+  <div class="card kpi"><div class="num" id="k_cls">-</div><div class="lbl">班级数</div></div>
+  <div class="card kpi"><div class="num" id="k_work">-</div><div class="lbl">作品评价记录</div></div>
+  <div class="card kpi"><div class="num" id="k_avg">-</div><div class="lbl">学生平均综合分</div></div>
+</div>
+<div class="grid c2">
+  <div class="card">
+    <h3>五育素养平均画像（最新阶段）</h3>
+    <div class="chart" id="chart_dim"></div>
+  </div>
+  <div class="card">
+    <h3>综合评价等级分布</h3>
+    <div class="chart" id="chart_level"></div>
+  </div>
+</div>
+<div class="grid c2">
+  <div class="card">
+    <h3>全校三阶段平均趋势（学期初 → 学期末）</h3>
+    <div class="chart" id="chart_trend"></div>
+  </div>
+  <div class="card">
+    <h3>平台核心能力</h3>
+    <div class="core-list">
+      <p><b>① 五育+三阶段评价模型：</b>德（品德）智（智育）体（体育）美（美育）劳（劳动），贯穿学期初-中-末，全周期动态追踪。</p>
+      <p><b>② AI 智能分析：</b>对绘画、音乐等作品按 完成度40% + 创意性35% + 技法25% 客观量化评分，与教师评价融合形成人机协同双重评估。</p>
+      <p><b>③ 区域教育发展研判：</b>输入地名即可检索官方统计数据，自动生成指数评级、短板诊断与对策建议，辅助支教地区教育振兴决策。</p>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+var DIMS = {{ dims|tojson }};
+var LETTERS = {{ letters|tojson }};
+loadOverview();
+async function loadOverview() {
+  var r = await api('/api/stats/overview');
+  if (!r.ok) return;
+  var d = r.data;
+  document.getElementById('k_stu').textContent = d.n_stu;
+  document.getElementById('k_cls').textContent = d.n_cls;
+  document.getElementById('k_work').textContent = d.n_work;
+  document.getElementById('k_avg').textContent = d.avg_total;
+  initC('chart_dim').setOption({
+    tooltip: { trigger: 'item', triggerOn: 'click', renderMode: 'richText', confine: true },
+    radar: { indicator: DIMS.map(function (n, i) { return { name: LETTERS[i] + '·' + n, max: 100 }; }), radius: '62%', axisName: { fontSize: 12 } },
+    series: [{ type: 'radar', symbolSize: 5, data: [{ value: d.dim_avg, name: '五育平均', areaStyle: { opacity: .28 } }] }]
+  });
+  initC('chart_level').setOption({
+    tooltip: { trigger: 'item', triggerOn: 'click', renderMode: 'richText', confine: true, formatter: '{b}：{c} 人（{d}%）' },
+    series: [{ type: 'pie', radius: ['42%', '68%'], itemStyle: { borderRadius: 5, borderColor: '#fff', borderWidth: 2 },
+      label: { formatter: '{b}\n{c}人' },
+      data: [
+        { name: '优秀', value: d.levels['优秀'] },
+        { name: '良好', value: d.levels['良好'] },
+        { name: '需提升', value: d.levels['需提升'] },
+        { name: '需关注', value: d.levels['需关注'] }
+      ] }]
+  });
+  initC('chart_trend').setOption({
+    tooltip: { trigger: 'axis', triggerOn: 'click', renderMode: 'richText', confine: true },
+    grid: { left: 45, right: 20, top: 25, bottom: 28, containLabel: true },
+    xAxis: { type: 'category', data: ['学期初', '学期中', '学期末'] },
+    yAxis: { type: 'value', min: 50, max: 100 },
+    series: [{ type: 'line', data: d.stage_trend, smooth: true, symbolSize: 8, areaStyle: { opacity: .12 }, label: { show: true, formatter: '{c}分' } }]
+  });
+}
+</script>
+{% endblock %}
