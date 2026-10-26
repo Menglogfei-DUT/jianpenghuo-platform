@@ -20,8 +20,6 @@ import sqlite3
 import time
 from datetime import datetime
 
-import numpy as np
-import pandas as pd
 from flask import (Flask, render_template, request, jsonify, session,
                    redirect, url_for)
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -595,9 +593,9 @@ def api_send_code():
         return jsonify({'ok': False, 'msg': MSG['phone_invalid']})
     code = str(random.randint(100000, 999999))
     SMS_CODES[phone] = {'code': code, 'expire': time.time() + 300}
-    if os.environ.get('SMS_DEMO', '1') == '0':
-        return jsonify({'ok': True, 'msg': MSG['code_sent_prod']})
-    return jsonify({'ok': True, 'msg': MSG['code_sent'].format(code=code), 'demo_code': code})
+    if os.environ.get('SMS_DEMO', '0') == '1':
+        return jsonify({'ok': True, 'msg': MSG['code_sent'].format(code=code), 'demo_code': code})
+    return jsonify({'ok': True, 'msg': MSG['code_sent_prod']})
 
 
 @app.route('/api/register', methods=['POST'])
