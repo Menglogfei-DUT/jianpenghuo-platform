@@ -288,6 +288,7 @@ def get_db():
 
 
 def init_db():
+    os.makedirs(DATA_DIR, exist_ok=True)
     # V2 migration: if a V1 database exists, back it up and rebuild with new schema/semantics
     if os.path.exists(DB_PATH):
         try:
@@ -1007,6 +1008,9 @@ def api_stats_class_compare():
     return jsonify({'ok': True, 'data': out})
 
 
+# Initialize the database on import so WSGI servers (e.g. PythonAnywhere)
+# receive a ready-to-serve app. init_db() is idempotent.
+init_db()
+
 if __name__ == '__main__':
-    init_db()
     app.run(host='0.0.0.0', port=5001, debug=False)
